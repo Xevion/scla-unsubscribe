@@ -114,14 +114,17 @@ func Unsubscribe(email string) (*ConfirmationResponse, error) {
 	if response.StatusCode != 200 {
 		// If JSON returned, parse the message for the error
 		contentType := response.Header.Get("Content-Type")
-		if strings.Contains(contentType, "application/json") {
+		if !strings.Contains(contentType, "application/json") {
 			return nil, UnsubscribeUnexpectedError{Message: string(body), Code: response.StatusCode}
 		}
 
 		// Parse the JSON
 		var errorResponse ErrorResponse
-		json.Unmarshal(body, &errorResponse)
-		log.Debug().Interface("errorResponse", errorResponse).Msg("Error Response")
+		err := json.Unmarshal(body, &errorResponse)
+		if err != nil {
+			log.Error().Err(err).Msg("Error parsing error response")
+			return nil, UnsubscribeUnexpectedError{Message: string(body), Code: response.StatusCode}
+		}
 
 		switch errorResponse.Message {
 		case "checksum invalid":

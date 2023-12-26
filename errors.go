@@ -11,11 +11,11 @@ type UnsubscribeUnexpectedError struct {
 }
 
 func (e ChecksumMissingError) Error() string {
-	return fmt.Sprintf("checksum missing: %x", e)
+	return fmt.Sprintf("checksum missing: %x", []byte(e[:]))
 }
 
 func (e ChecksumInvalidError) Error() string {
-	return fmt.Sprintf("checksum invalid: %x", e)
+	return fmt.Sprintf("checksum invalid: %x", []byte(e[:]))
 }
 
 func (e UnsubscribeRejectedError) Error() string {
