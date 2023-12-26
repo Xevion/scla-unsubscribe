@@ -20,14 +20,6 @@ func init() {
 	log.Logger = zerolog.New(logSplitter{}).With().Timestamp().Logger()
 }
 
-type Confirmation struct {
-	FormId              string `json:"formId"`
-	FollowUpUrl         string `json:"followUpUrl"`
-	DeliveryType        string `json:"deliveryType"`
-	FollowUpStreamValue string `json:"followUpStreamValue"`
-	AliId               string `json:"aliId"`
-}
-
 func DoRequest(req *http.Request) (*http.Response, []byte, error) {
 	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
 	resp, err := client.Do(req)
@@ -58,7 +50,7 @@ func ApplyHeaders(req *http.Request) {
 	req.Header.Set("Accept-Encoding", "gzip, deflate")
 }
 
-func Unsubscribe(email string) *Confirmation {
+func Unsubscribe(email string) (*ConfirmationResponse, error) {
 	mktTok := "ODM5LU1PTC01NTIAAAGQRiDbOUWzUhLliVDxTHjxLfZDD1y0MxC47Wf_1C9UTbwEej3Tckhn_QteZR7p5Mpl3_f0ioPUyQ8XUceJ9a0PiOUJb_O3YIj8PwKNQEm4SseaSw"
 
 	// Build referrer URL
@@ -68,6 +60,7 @@ func Unsubscribe(email string) *Confirmation {
 	query.Add("mkt_tok", mktTok)
 	referrerUrl.RawQuery = query.Encode()
 
+	// Build lpUrl
 	thing := "839-MOL-552"
 	lpUrl := fmt.Sprintf("http://%s.mktoweb.com/lp/%s/UnsubscribePage.html?cr={creative}&kw={keyword}", thing, thing)
 
@@ -89,24 +82,21 @@ func Unsubscribe(email string) *Confirmation {
 		"_mktoReferrer": {referrerUrl.String()},
 	}
 
-	fields := []string{"Email", "Unsubscribed", "formid", "lpId", "subId", "munchkinId", "lpurl", "followupLpId", "cr", "kw", "q", "_mkt_trk", "formVid", "mkt_tok", "_mktoReferrer"}
-	// fields := make([]string, 0, len(values))
-	// for key, _ := range values {
-	// 	fields = append(fields, key)
-	// }
+	// Grab checksum fields
+	fields := make([]string, 0, len(values))
+	for key, _ := range values {
+		fields = append(fields, key)
+	}
 	values.Set("checksumFields", strings.Join(fields, ","))
-	log.Printf("%+v", values.Get("checksumFields"))
 
 	// Calculate checksum
-	h := sha256.New()
-	h.Write([]byte(strings.Join(
+	checksum := sha256.Sum256([]byte(strings.Join(
 		lo.Map(fields, func(field string, _ int) string {
 			return values.Get(field)
 		}), "|")))
 
-	hex := fmt.Sprintf("%x", h.Sum(nil))
-	values.Set("checksum", hex)
-	log.Debug().Str("hex", hex).Msg("Checksum")
+	checksum[0] = 0
+	values.Set("checksum", fmt.Sprintf("%x", checksum))
 
 	// Make request
 	request, _ := http.NewRequest("POST", "http://www2.thescla.org/index.php/leadCapture/save2", strings.NewReader(values.Encode()))
@@ -115,26 +105,47 @@ func Unsubscribe(email string) *Confirmation {
 	request.Header.Set("X-Requested-With", "XMLHttpRequest")
 	ApplyHeaders(request)
 
+	// Send request
 	response, body, err := DoRequest(request)
 	if err != nil {
 		panic(err)
 	}
 
 	if response.StatusCode != 200 {
-		log.Print(string(body))
-		return nil
+		// If JSON returned, parse the message for the error
+		contentType := response.Header.Get("Content-Type")
+		if strings.Contains(contentType, "application/json") {
+			return nil, UnsubscribeUnexpectedError{Message: string(body), Code: response.StatusCode}
+		}
+
+		// Parse the JSON
+		var errorResponse ErrorResponse
+		json.Unmarshal(body, &errorResponse)
+		log.Debug().Interface("errorResponse", errorResponse).Msg("Error Response")
+
+		switch errorResponse.Message {
+		case "checksum invalid":
+			return nil, ChecksumInvalidError(checksum)
+		case "checksum missing":
+			return nil, ChecksumMissingError(checksum)
+		case "Rejected":
+			return nil, UnsubscribeRejectedError(errorResponse.Message)
+		}
+
+		log.Error().Str("content-type", contentType).Str("body", string(body)).Msg("Unknown Error")
+		return nil, UnsubscribeUnexpectedError{Message: string(body), Code: response.StatusCode}
 	}
 
-	var confirmation Confirmation
+	var confirmation ConfirmationResponse
 	json.Unmarshal(body, &confirmation)
-	return &confirmation
+	return &confirmation, nil
 }
 
 func main() {
-	conf := Unsubscribe("ryan.walters@my.utsa.edu")
-	if conf != nil {
-		log.Info().Str("formId", conf.FormId).Str("followUpUrl", conf.FollowUpUrl).Str("deliveryType", conf.DeliveryType).Str("followUpStreamValue", conf.FollowUpStreamValue).Str("aliId", conf.AliId).Msg("Unsubscribed")
-	} else {
-		log.Error().Msg("Failed to Unsubscribe")
+	conf, err := Unsubscribe("")
+	if err != nil {
+		log.Panic().Err(err).Msg("Failed to Unsubscribe")
 	}
+
+	log.Info().Str("formId", conf.FormId).Str("followUpUrl", conf.FollowUpUrl).Str("deliveryType", conf.DeliveryType).Str("followUpStreamValue", conf.FollowUpStreamValue).Str("aliId", conf.AliId).Msg("Unsubscribed")
 }
