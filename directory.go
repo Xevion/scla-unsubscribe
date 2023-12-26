@@ -22,6 +22,9 @@ func Login(username string, password string) {
 
 	// Send request
 	response, err := DoRequestNoRead(request)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Error sending login page request")
+	}
 	doc, err := goquery.NewDocumentFromReader(response.Body)
 	defer response.Body.Close()
 	if err != nil {
@@ -39,21 +42,24 @@ func Login(username string, password string) {
 		"__RequestVerificationToken": {token},
 		"log-me-in":                  {"Log+In"},
 	}
-	log.Debug().Str("form", form.Encode()).Msg("Form Data")
 	request, _ = http.NewRequest("POST", "https://www.utsa.edu/directory/", strings.NewReader(form.Encode()))
 	ApplyHeaders(request)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// Send the login request
-	response, body, err := DoRequest(request)
+	response, _, err = DoRequest(request)
 
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error sending login request")
 	}
 
 	if response.StatusCode != 200 {
-		log.Printf("%+v", string(body))
-		log.Fatal().Str("status", response.Status).Msg("Error logging in")
+		switch response.StatusCode {
+		case 500:
+			log.Fatal().Str("status", response.Status).Msg("Bad Request (check cookies)")
+		default:
+			log.Fatal().Str("status", response.Status).Msg("Failed to Login, Unknown Error")
+		}
 	}
 
 	// TODO: Check if login was successful
