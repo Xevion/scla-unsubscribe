@@ -6,18 +6,41 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
+	"os"
+	"os/signal"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 )
 
-var client = &http.Client{}
+var client *http.Client
 
 func init() {
 	log.Logger = zerolog.New(logSplitter{}).With().Timestamp().Logger()
+
+	jar, _ := cookiejar.New(nil)
+	client = &http.Client{
+		Jar: jar,
+	}
+}
+
+func DoRequestNoRead(req *http.Request) (*http.Response, error) {
+	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
+	resp, err := client.Do(req)
+
+	if err != nil {
+		log.Error().Err(err).Msg("Error making request")
+		return nil, err
+	}
+
+	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Str("content-length", resp.Header.Get("Content-Length")).Msg("Response")
+
+	return resp, nil
 }
 
 func DoRequest(req *http.Request) (*http.Response, []byte, error) {
@@ -95,7 +118,6 @@ func Unsubscribe(email string) (*ConfirmationResponse, error) {
 			return values.Get(field)
 		}), "|")))
 
-	checksum[0] = 0
 	values.Set("checksum", fmt.Sprintf("%x", checksum))
 
 	// Make request
@@ -145,10 +167,25 @@ func Unsubscribe(email string) (*ConfirmationResponse, error) {
 }
 
 func main() {
-	conf, err := Unsubscribe("")
-	if err != nil {
-		log.Panic().Err(err).Msg("Failed to Unsubscribe")
-	}
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
 
-	log.Info().Str("formId", conf.FormId).Str("followUpUrl", conf.FollowUpUrl).Str("deliveryType", conf.DeliveryType).Str("followUpStreamValue", conf.FollowUpStreamValue).Str("aliId", conf.AliId).Msg("Unsubscribed")
+	// Load .env
+	godotenv.Load()
+
+	username := os.Getenv("UTSA_USERNAME")
+	password := os.Getenv("UTSA_PASSWORD")
+
+	Login(username, password)
+
+	// email := strings.ToLower(fmt.Sprintf("%s.%s@my.utsa.edu", fake.FirstName(), fake.LastName()))
+
+	// log.Debug().Str("email", email).Msg("Unsubscribing")
+	// conf, err := Unsubscribe(email)
+
+	// if err != nil {
+	// 	log.Panic().Err(err).Msg("Failed to Unsubscribe")
+	// }
+
+	// log.Info().Str("formId", conf.FormId).Str("followUpUrl", conf.FollowUpUrl).Str("deliveryType", conf.DeliveryType).Str("followUpStreamValue", conf.FollowUpStreamValue).Str("aliId", conf.AliId).Msg("Unsubscribed")
 }
