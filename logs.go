@@ -33,20 +33,39 @@ func (l logSplitter) WriteLevel(level zerolog.Level, p []byte) (n int, err error
 	}
 }
 
-type badgerZerologLogger struct{}
+type loggingLevel int
+
+const (
+	DEBUG loggingLevel = iota
+	INFO
+	WARNING
+	ERROR
+)
+
+type badgerZerologLogger struct {
+	level loggingLevel
+}
 
 func (l badgerZerologLogger) Errorf(format string, args ...interface{}) {
-	log.Error().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+	if l.level <= ERROR {
+		log.Error().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+	}
 }
 
 func (l badgerZerologLogger) Warningf(format string, args ...interface{}) {
-	log.Warn().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+	if l.level <= WARNING {
+		log.Warn().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+	}
 }
 
 func (l badgerZerologLogger) Infof(format string, args ...interface{}) {
-	log.Info().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+	if l.level <= INFO {
+		log.Info().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+	}
 }
 
 func (l badgerZerologLogger) Debugf(format string, args ...interface{}) {
-	log.Debug().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+	if l.level <= DEBUG {
+		log.Debug().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+	}
 }

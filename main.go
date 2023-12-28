@@ -23,7 +23,7 @@ func init() {
 
 	// Initialize Badger db store
 	var err error
-	options := badger.DefaultOptions("./db/").WithLogger(badgerZerologLogger{})
+	options := badger.DefaultOptions("./db/").WithLogger(badgerZerologLogger{level: WARNING})
 	db, err = badger.Open(options)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to open database")
@@ -91,6 +91,7 @@ func LoadCookies() {
 	client.Jar.SetCookies(utsaUrl, lo.Map(cookies, func(cookie http.Cookie, _ int) *http.Cookie {
 		return &cookie
 	}))
+	log.Debug().Int("count", len(cookies)).Msg("Cookies Loaded from DB")
 }
 
 func main() {
