@@ -9,12 +9,19 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var client *http.Client
+var db *leveldb.DB
 
 func init() {
 	log.Logger = zerolog.New(logSplitter{}).With().Timestamp().Logger()
+	db, err := leveldb.OpenFile("./cache", nil)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to open database")
+	}
+	defer db.Close()
 
 	jar, _ := cookiejar.New(nil)
 	client = &http.Client{

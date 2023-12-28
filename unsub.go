@@ -13,6 +13,7 @@ import (
 )
 
 func Unsubscribe(email string) (*ConfirmationResponse, error) {
+	// No idea what this is, but it doesn't seem to change?
 	mktTok := "ODM5LU1PTC01NTIAAAGQRiDbOUWzUhLliVDxTHjxLfZDD1y0MxC47Wf_1C9UTbwEej3Tckhn_QteZR7p5Mpl3_f0ioPUyQ8XUceJ9a0PiOUJb_O3YIj8PwKNQEm4SseaSw"
 
 	// Build referrer URL
