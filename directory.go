@@ -66,7 +66,7 @@ func Login(username string, password string) error {
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// Send the login request
-	response, body, err := DoRequest(request)
+	response, err = DoRequestNoRead(request)
 
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error sending login request")
@@ -188,6 +188,7 @@ func CheckLoggedIn() (bool, error) {
 				logOffFound = true
 			}
 		})
+		return true, nil
 	}
 
 	return false, nil
