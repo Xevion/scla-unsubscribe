@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 const timeFormat = "2006-01-02 15:04:05"
@@ -28,4 +29,22 @@ func (l logSplitter) WriteLevel(level zerolog.Level, p []byte) (n int, err error
 	} else {
 		return errorOut.Write(p)
 	}
+}
+
+type badgerZerologLogger struct{}
+
+func (l badgerZerologLogger) Errorf(format string, args ...interface{}) {
+	log.Error().Msgf(format, args...)
+}
+
+func (l badgerZerologLogger) Warningf(format string, args ...interface{}) {
+	log.Warn().Msgf(format, args...)
+}
+
+func (l badgerZerologLogger) Infof(format string, args ...interface{}) {
+	log.Info().Msgf(format, args...)
+}
+
+func (l badgerZerologLogger) Debugf(format string, args ...interface{}) {
+	log.Debug().Msgf(format, args...)
 }
