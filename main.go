@@ -32,7 +32,10 @@ func main() {
 	username := os.Getenv("UTSA_USERNAME")
 	password := os.Getenv("UTSA_PASSWORD")
 
-	Login(username, password)
+	err := Login(username, password)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to login")
+	}
 
 	// email := strings.ToLower(fmt.Sprintf("%s.%s@my.utsa.edu", fake.FirstName(), fake.LastName()))
 

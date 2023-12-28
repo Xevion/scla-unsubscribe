@@ -1,15 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/rs/zerolog/log"
+	"github.com/samber/lo"
 )
 
-func Login(username string, password string) {
+func Login(username string, password string) error {
 	// Setup URL for request
 	loginPageUrl, _ := url.Parse("https://www.utsa.edu/directory/Account/Login")
 	query := loginPageUrl.Query()
@@ -18,7 +20,7 @@ func Login(username string, password string) {
 
 	// Build request
 	request, _ := http.NewRequest("GET", loginPageUrl.String(), nil)
-	ApplyHeaders(request)
+	ApplyUtsaHeaders(request)
 
 	// Send request
 	response, err := DoRequestNoRead(request)
@@ -43,11 +45,11 @@ func Login(username string, password string) {
 		"log-me-in":                  {"Log+In"},
 	}
 	request, _ = http.NewRequest("POST", "https://www.utsa.edu/directory/", strings.NewReader(form.Encode()))
-	ApplyHeaders(request)
+	ApplyUtsaHeaders(request)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// Send the login request
-	response, _, err = DoRequest(request)
+	response, body, err := DoRequest(request)
 
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error sending login request")
@@ -55,12 +57,66 @@ func Login(username string, password string) {
 
 	if response.StatusCode != 200 {
 		switch response.StatusCode {
+		case 302: // ignore
+
 		case 500:
-			log.Fatal().Str("status", response.Status).Msg("Bad Request (check cookies)")
+			return fmt.Errorf("bad request (check cookies)")
 		default:
-			log.Fatal().Str("status", response.Status).Msg("Failed to Login, Unknown Error")
+			return fmt.Errorf("unknown error")
 		}
 	}
 
-	// TODO: Check if login was successful
+	// Check for Set-Cookie of ".ADAuthCookie"
+	newCookies := response.Header.Values("Set-Cookie")
+	authCookie, found := lo.Find(newCookies, func(cookie string) bool {
+		log.Debug().Str("cookie", cookie).Msg("Checking Cookie")
+		if strings.Contains(cookie, ".ADAuthCookie") {
+			log.Debug().Str("cookie", cookie).Msg("Cookie Captured")
+			return true
+		}
+		return false
+	})
+
+	if !found {
+		// return fmt.Errorf("login failed: could not find auth cookie")
+	}
+	log.Debug().Str("authCookie", authCookie).Msg("Auth Cookie Found")
+
+	doc, err = goquery.NewDocumentFromReader(strings.NewReader(string(body)))
+	if err != nil {
+		return fmt.Errorf("error parsing response body")
+	}
+
+	// Look for field validation errors (untested)
+	validationErrors := doc.Find("span.field-validation-error")
+	if validationErrors.Length() > 0 {
+		event := log.Debug().Int("validationErrors", validationErrors.Length())
+		validationErrors.Each(func(i int, s *goquery.Selection) {
+			event.Str(fmt.Sprintf("err_%d", i+1), s.Text())
+		})
+		return fmt.Errorf("validation error: %s", validationErrors.First().Text())
+	}
+
+	// Look for the 'Log Off' link
+	logOffFound := false
+	doc.Find("a.dropdown-item").Each(func(i int, s *goquery.Selection) {
+		if !logOffFound && strings.Contains(s.Text(), "Log Off") {
+			log.Debug().Int("index", i).Msg("Log Off Element Found")
+			logOffFound = true
+		}
+	})
+
+	if !logOffFound {
+		return fmt.Errorf("login failed: could not find log off element")
+	}
+
+	return nil
+}
+
+func CheckLoggedIn() (bool, error) {
+	directoryPageUrl, _ := url.Parse("https://www.utsa.edu/directory/AdvancedSearch")
+	request, _ := http.NewRequest("GET", directoryPageUrl.String(), nil)
+	ApplyUtsaHeaders(request)
+
+	return false, nil
 }
