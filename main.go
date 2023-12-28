@@ -52,7 +52,7 @@ func SaveCookies() {
 		return *cookiePointer
 	})
 
-	log.Debug().Int("count", len(utsaCookies)).Msg("Saving Cookies")
+	log.Info().Int("count", len(utsaCookies)).Msg("Saving Cookies")
 
 	// Marshal cookies, create transaction
 	marshalledCookies, _ := json.Marshal(utsaCookies)
@@ -93,7 +93,7 @@ func LoadCookies() {
 	client.Jar.SetCookies(utsaUrl, lo.Map(cookies, func(cookie http.Cookie, _ int) *http.Cookie {
 		return &cookie
 	}))
-	log.Debug().Int("count", len(cookies)).Msg("Cookies Loaded from DB")
+	log.Info().Int("count", len(cookies)).Msg("Cookies Loaded from DB")
 }
 
 func main() {
@@ -106,17 +106,20 @@ func main() {
 	username := os.Getenv("UTSA_USERNAME")
 	password := os.Getenv("UTSA_PASSWORD")
 
+	log.Debug().Msg("Checking Login State")
 	loggedIn, err := CheckLoggedIn()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to check login state")
 	}
 
 	if !loggedIn {
-		log.Debug().Str("username", username).Msg("Attempting Login")
+		log.Info().Str("username", username).Msg("Attempting Login")
 		err := Login(username, password)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to login")
 		}
+	} else {
+		log.Info().Msg("Login not required")
 	}
 
 	defer db.Close()
