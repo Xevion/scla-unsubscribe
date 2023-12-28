@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"os/signal"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/samber/lo"
 )
 
 var client *http.Client
@@ -25,7 +28,6 @@ func init() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to open database")
 	}
-	defer db.Close()
 
 	// Setup http client + cookie jar
 	jar, _ := cookiejar.New(nil)
@@ -37,20 +39,58 @@ func init() {
 		},
 	}
 
-	defer SaveCookies()
+	// Load cookies from db
+	LoadCookies()
 }
 
 func SaveCookies() {
-	jar := client.Jar.(*cookiejar.Jar)
-	for _, cookie := range cookies {
-		err := db.Update(func(txn *badger.Txn) error {
-			err := txn.Set([]byte(cookie.Name), []byte(cookie.Value))
+	// Get cookies for UTSA.EDU
+	utsaUrl, _ := url.Parse("https://www.utsa.edu")
+	utsaCookies := lo.Map(client.Jar.Cookies(utsaUrl), func(cookiePointer *http.Cookie, _ int) http.Cookie {
+		return *cookiePointer
+	})
+
+	log.Debug().Int("count", len(utsaCookies)).Msg("Saving Cookies")
+
+	// Marshal cookies, create transaction
+	marshalledCookies, _ := json.Marshal(utsaCookies)
+	err := db.Update(func(txn *badger.Txn) error {
+		log.Printf(string(marshalledCookies))
+		err := txn.Set([]byte("utsa_cookies"), []byte(marshalledCookies))
+		return err
+	})
+	if err != nil {
+		log.Err(err).Msg("Failed to save marshalled cookies")
+	}
+}
+
+func LoadCookies() {
+	// Load cookies from DB
+	var cookies []http.Cookie
+	err := db.View(func(txn *badger.Txn) error {
+		// Get cookies
+		item, err := txn.Get([]byte("utsa_cookies"))
+		if err != nil {
+			return err
+		}
+
+		// Read the value, unmarshal
+		err = item.Value(func(val []byte) error {
+			err := json.Unmarshal(val, &cookies)
 			return err
 		})
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to save cookie")
-		}
+
+		return err
+	})
+
+	if err != nil {
+		log.Err(err).Msg("Failed to load marshalled cookies")
 	}
+
+	utsaUrl, _ := url.Parse("https://www.utsa.edu")
+	client.Jar.SetCookies(utsaUrl, lo.Map(cookies, func(cookie http.Cookie, _ int) *http.Cookie {
+		return &cookie
+	}))
 }
 
 func main() {
@@ -67,6 +107,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to login")
 	}
+
+	defer db.Close()
+	defer SaveCookies()
 
 	// email := strings.ToLower(fmt.Sprintf("%s.%s@my.utsa.edu", fake.FirstName(), fake.LastName()))
 
