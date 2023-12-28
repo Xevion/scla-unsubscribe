@@ -12,6 +12,19 @@ import (
 )
 
 func Login(username string, password string) error {
+	// Setup initial redirected request
+	directoryPageUrl, _ := url.Parse("https://www.utsa.edu/directory/Directory?action=Index")
+	request, _ := http.NewRequest("GET", directoryPageUrl.String(), nil)
+	ApplyUtsaHeaders(request)
+	response, err := DoRequestNoRead(request)
+
+	// Verify that we were redirected to the login page
+	if response.StatusCode != 302 {
+		return fmt.Errorf("bad request (no initial redirect)")
+	} else {
+		log.Debug().Str("location", response.Header.Get("Location")).Msg("Initial Page Redirected")
+	}
+
 	// Setup URL for request
 	loginPageUrl, _ := url.Parse("https://www.utsa.edu/directory/Account/Login")
 	query := loginPageUrl.Query()
@@ -19,11 +32,11 @@ func Login(username string, password string) error {
 	loginPageUrl.RawQuery = query.Encode()
 
 	// Build request
-	request, _ := http.NewRequest("GET", loginPageUrl.String(), nil)
+	request, _ = http.NewRequest("GET", loginPageUrl.String(), nil)
 	ApplyUtsaHeaders(request)
 
 	// Send request
-	response, err := DoRequestNoRead(request)
+	response, err = DoRequestNoRead(request)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error sending login page request")
 	}
@@ -39,11 +52,12 @@ func Login(username string, password string) error {
 
 	// Build the login request
 	form := url.Values{
+		"__RequestVerificationToken": {token},
 		"myUTSAID":                   {username},
 		"passphrase":                 {password},
-		"__RequestVerificationToken": {token},
 		"log-me-in":                  {"Log+In"},
 	}
+	log.Debug().Str("form", form.Encode()).Msg("Form Encoded")
 	request, _ = http.NewRequest("POST", "https://www.utsa.edu/directory/", strings.NewReader(form.Encode()))
 	ApplyUtsaHeaders(request)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -69,18 +83,14 @@ func Login(username string, password string) error {
 	// Check for Set-Cookie of ".ADAuthCookie"
 	newCookies := response.Header.Values("Set-Cookie")
 	authCookie, found := lo.Find(newCookies, func(cookie string) bool {
-		log.Debug().Str("cookie", cookie).Msg("Checking Cookie")
-		if strings.Contains(cookie, ".ADAuthCookie") {
-			log.Debug().Str("cookie", cookie).Msg("Cookie Captured")
-			return true
-		}
-		return false
+		return strings.Contains(cookie, ".ADAuthCookie")
 	})
 
 	if !found {
-		// return fmt.Errorf("login failed: could not find auth cookie")
+		return fmt.Errorf("login failed: could not find auth cookie")
+	} else {
+		log.Info().Str("authCookie", authCookie).Msg("Auth Cookie Found")
 	}
-	log.Debug().Str("authCookie", authCookie).Msg("Auth Cookie Found")
 
 	doc, err = goquery.NewDocumentFromReader(strings.NewReader(string(body)))
 	if err != nil {

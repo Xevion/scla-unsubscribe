@@ -19,6 +19,10 @@ func init() {
 	jar, _ := cookiejar.New(nil)
 	client = &http.Client{
 		Jar: jar,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Don't follow redirects
+			return http.ErrUseLastResponse
+		},
 	}
 }
 
