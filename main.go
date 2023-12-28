@@ -15,8 +15,10 @@ import (
 	"github.com/samber/lo"
 )
 
-var client *http.Client
-var db *badger.DB
+var (
+	client *http.Client
+	db     *badger.DB
+)
 
 func init() {
 	log.Logger = zerolog.New(logSplitter{}).With().Timestamp().Logger()
@@ -55,7 +57,6 @@ func SaveCookies() {
 	// Marshal cookies, create transaction
 	marshalledCookies, _ := json.Marshal(utsaCookies)
 	err := db.Update(func(txn *badger.Txn) error {
-		log.Printf(string(marshalledCookies))
 		err := txn.Set([]byte("utsa_cookies"), []byte(marshalledCookies))
 		return err
 	})
@@ -87,6 +88,7 @@ func LoadCookies() {
 		log.Err(err).Msg("Failed to load marshalled cookies")
 	}
 
+	// Place cookies in the jar
 	utsaUrl, _ := url.Parse("https://www.utsa.edu")
 	client.Jar.SetCookies(utsaUrl, lo.Map(cookies, func(cookie http.Cookie, _ int) *http.Cookie {
 		return &cookie
@@ -104,9 +106,17 @@ func main() {
 	username := os.Getenv("UTSA_USERNAME")
 	password := os.Getenv("UTSA_PASSWORD")
 
-	err := Login(username, password)
+	loggedIn, err := CheckLoggedIn()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to login")
+		log.Fatal().Err(err).Msg("Failed to check login state")
+	}
+
+	if !loggedIn {
+		log.Debug().Str("username", username).Msg("Attempting Login")
+		err := Login(username, password)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to login")
+		}
 	}
 
 	defer db.Close()

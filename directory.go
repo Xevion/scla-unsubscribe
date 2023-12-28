@@ -17,6 +17,9 @@ func Login(username string, password string) error {
 	request, _ := http.NewRequest("GET", directoryPageUrl.String(), nil)
 	ApplyUtsaHeaders(request)
 	response, err := DoRequestNoRead(request)
+	if err != nil {
+		return nil
+	}
 
 	// Verify that we were redirected to the login page
 	if response.StatusCode != 302 {
@@ -100,11 +103,18 @@ func Login(username string, password string) error {
 	}
 
 	// Request the redirect page
-	request, _ = http.NewRequest("GET", fmt.Sprintf("%s%s", "https://www.utsa.edu", response.Header.Get("Location")), nil)
+	redirectUrl := fmt.Sprintf("%s%s", "https://www.utsa.edu", response.Header.Get("Location"))
+	request, _ = http.NewRequest("GET", redirectUrl, nil)
 	ApplyUtsaHeaders(request)
-	response, body, err = DoRequest(request)
+	response, err = DoRequestNoRead(request)
+	if err != nil {
+		return err
+	} else if response.StatusCode != 200 {
+		return fmt.Errorf("non-200 status after login attempt")
+	}
 
-	doc, err = goquery.NewDocumentFromReader(strings.NewReader(string(body)))
+	// Parse the response body
+	doc, err = goquery.NewDocumentFromReader(response.Body)
 	if err != nil {
 		return fmt.Errorf("error parsing response body")
 	}
@@ -136,9 +146,49 @@ func Login(username string, password string) error {
 }
 
 func CheckLoggedIn() (bool, error) {
+	// Check if required cookie exists
+	utsaUrl, _ := url.Parse("https://www.utsa.edu")
+	cookies := client.Jar.Cookies(utsaUrl)
+	_, authCookieFound := lo.Find(cookies, func(cookie *http.Cookie) bool {
+		return strings.Contains(cookie.Name, ".ADAuthCookie")
+	})
+
+	if !authCookieFound {
+		log.Debug().Int("count", len(cookies)).Msg("ActiveDirectory Auth Cookie Not Found")
+		return false, nil
+	}
+
+	// Send a authenticated-only request
 	directoryPageUrl, _ := url.Parse("https://www.utsa.edu/directory/AdvancedSearch")
 	request, _ := http.NewRequest("GET", directoryPageUrl.String(), nil)
 	ApplyUtsaHeaders(request)
+	response, err := DoRequestNoRead(request)
+	if err != nil {
+		return false, fmt.Errorf("could not send redirect check request")
+	}
+
+	// If it's not a 302
+	if response.StatusCode != 302 {
+		// No planning for non-200 responses (this will blow up one day, probably a 400 or 500)
+		if response.StatusCode != 200 {
+			log.Fatal().Int("code", response.StatusCode).Msg("Unexpected Login Check Response Code")
+		}
+
+		// Parse the response document
+		doc, err := goquery.NewDocumentFromReader(response.Body)
+		if err != nil {
+			return false, fmt.Errorf("error parsing response body")
+		}
+
+		// Try to find the log out button
+		logOffFound := false
+		doc.Find("a.dropdown-item").Each(func(i int, s *goquery.Selection) {
+			if !logOffFound && strings.Contains(s.Text(), "Log Off") {
+				log.Debug().Int("index", i).Msg("Log Off Element Found")
+				logOffFound = true
+			}
+		})
+	}
 
 	return false, nil
 }
