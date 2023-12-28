@@ -64,7 +64,7 @@ func Unsubscribe(email string) (*ConfirmationResponse, error) {
 	request.Header.Set("Referer", "http://www2.thescla.org/UnsubscribePage.html?mkt_unsubscribe=1")
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	request.Header.Set("X-Requested-With", "XMLHttpRequest")
-	ApplyHeaders(request)
+	ApplySclaHeaders(request)
 
 	// Send request
 	response, body, err := DoRequest(request)
