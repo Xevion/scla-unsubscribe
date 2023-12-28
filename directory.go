@@ -150,7 +150,7 @@ func CheckLoggedIn() (bool, error) {
 	utsaUrl, _ := url.Parse("https://www.utsa.edu")
 	cookies := client.Jar.Cookies(utsaUrl)
 	_, authCookieFound := lo.Find(cookies, func(cookie *http.Cookie) bool {
-		return strings.Contains(cookie.Name, ".ADAuthCookie")
+		return cookie.Name == ".ADAuthCookie"
 	})
 
 	if !authCookieFound {
