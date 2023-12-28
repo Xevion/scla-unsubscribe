@@ -6,23 +6,28 @@ import (
 	"os"
 	"os/signal"
 
+	badger "github.com/dgraph-io/badger/v4"
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var client *http.Client
-var db *leveldb.DB
+var db *badger.DB
 
 func init() {
 	log.Logger = zerolog.New(logSplitter{}).With().Timestamp().Logger()
-	db, err := leveldb.OpenFile("./cache", nil)
+
+	// Initialize Badger db store
+	var err error
+	options := badger.DefaultOptions("./db/").WithLogger(badgerZerologLogger{})
+	db, err = badger.Open(options)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to open database")
 	}
 	defer db.Close()
 
+	// Setup http client + cookie jar
 	jar, _ := cookiejar.New(nil)
 	client = &http.Client{
 		Jar: jar,
@@ -30,6 +35,21 @@ func init() {
 			// Don't follow redirects
 			return http.ErrUseLastResponse
 		},
+	}
+
+	defer SaveCookies()
+}
+
+func SaveCookies() {
+	jar := client.Jar.(*cookiejar.Jar)
+	for _, cookie := range cookies {
+		err := db.Update(func(txn *badger.Txn) error {
+			err := txn.Set([]byte(cookie.Name), []byte(cookie.Value))
+			return err
+		})
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to save cookie")
+		}
 	}
 }
 
