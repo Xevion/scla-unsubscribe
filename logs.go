@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -34,17 +36,17 @@ func (l logSplitter) WriteLevel(level zerolog.Level, p []byte) (n int, err error
 type badgerZerologLogger struct{}
 
 func (l badgerZerologLogger) Errorf(format string, args ...interface{}) {
-	log.Error().Msgf(format, args...)
+	log.Error().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
 }
 
 func (l badgerZerologLogger) Warningf(format string, args ...interface{}) {
-	log.Warn().Msgf(format, args...)
+	log.Warn().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
 }
 
 func (l badgerZerologLogger) Infof(format string, args ...interface{}) {
-	log.Info().Msgf(format, args...)
+	log.Info().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
 }
 
 func (l badgerZerologLogger) Debugf(format string, args ...interface{}) {
-	log.Debug().Msgf(format, args...)
+	log.Debug().Msg(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
 }
