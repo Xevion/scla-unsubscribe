@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -12,14 +13,18 @@ import (
 // This function encapsulates the boilerplate for logging
 func DoRequestNoRead(req *http.Request) (*http.Response, error) {
 	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
+
+	start := time.Now()
 	resp, err := client.Do(req)
+	duration := time.Since(start)
 
 	if err != nil {
-		log.Error().Err(err).Msg("Error making request")
+		log.Error().Err(err).Msg("Request Error")
 		return nil, err
 	}
 
-	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Str("content-length", resp.Header.Get("Content-Length")).Msg("Response")
+	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Str("content-length", resp.Header.Get("Content-Length")).
+		Str("duration", duration.String()).Msg("Response")
 
 	return resp, nil
 }
@@ -27,23 +32,32 @@ func DoRequestNoRead(req *http.Request) (*http.Response, error) {
 // DoRequest makes a request and returns the response and body
 // This function encapsulates the boilerplate for logging and reading the response body
 func DoRequest(req *http.Request) (*http.Response, []byte, error) {
+	// Log the request
 	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
-	resp, err := client.Do(req)
 
+	// Send the request (while acquiring timings)
+	start := time.Now()
+	resp, err := client.Do(req)
+	duration := time.Since(start)
+
+	// Handle errors
 	if err != nil {
-		log.Error().Err(err).Msg("Error making request")
+		log.Error().Err(err).Msg("Request Error")
 		return nil, nil, err
 	}
 
+	// Read the body
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
+
 	if err != nil {
-		log.Error().Err(err).Msg("Error reading response body")
+		log.Err(err).Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Int("content-length", len(body)).
+			Str("duration", duration.String()).Msg("Response (Unable to Read Body)")
 		return nil, nil, err
 	}
 
-	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Int("content-length", len(body)).Msg("Response")
-
+	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Int("content-length", len(body)).
+		Str("duration", duration.String()).Msg("Response")
 	return resp, body, nil
 }
 
