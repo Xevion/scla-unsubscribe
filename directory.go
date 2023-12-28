@@ -92,6 +92,18 @@ func Login(username string, password string) error {
 		log.Info().Str("authCookie", authCookie).Msg("Auth Cookie Found")
 	}
 
+	// Check if redirected to directory page
+	if response.Header.Get("Location") != "" {
+		log.Debug().Str("location", response.Header.Get("Location")).Msg("Redirected")
+	} else {
+		return fmt.Errorf("login failed: no redirect")
+	}
+
+	// Request the redirect page
+	request, _ = http.NewRequest("GET", fmt.Sprintf("%s%s", "https://www.utsa.edu", response.Header.Get("Location")), nil)
+	ApplyUtsaHeaders(request)
+	response, body, err = DoRequest(request)
+
 	doc, err = goquery.NewDocumentFromReader(strings.NewReader(string(body)))
 	if err != nil {
 		return fmt.Errorf("error parsing response body")
