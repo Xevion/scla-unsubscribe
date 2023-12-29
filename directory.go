@@ -21,7 +21,7 @@ func Login(username string, password string) error {
 	ApplyUtsaHeaders(request)
 	response, err := DoRequestNoRead(request)
 	if err != nil {
-		return nil
+		return errors.Wrap(err, "error sending initial request")
 	}
 
 	// Verify that we were redirected to the login page
@@ -111,7 +111,7 @@ func Login(username string, password string) error {
 	ApplyUtsaHeaders(request)
 	response, err = DoRequestNoRead(request)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error sending redirect request")
 	} else if response.StatusCode != 200 {
 		return fmt.Errorf("non-200 status after login attempt")
 	}
@@ -119,7 +119,7 @@ func Login(username string, password string) error {
 	// Parse the response body
 	doc, err = goquery.NewDocumentFromReader(response.Body)
 	if err != nil {
-		return fmt.Errorf("error parsing response body")
+		return errors.Wrap(err, "error parsing response body")
 	}
 
 	// Look for field validation errors (untested)
@@ -167,7 +167,7 @@ func CheckLoggedIn() (bool, error) {
 	ApplyUtsaHeaders(request)
 	response, err := DoRequestNoRead(request)
 	if err != nil {
-		return false, fmt.Errorf("could not send redirect check request")
+		return false, errors.Wrap(err, "could not send redirect check request")
 	}
 
 	// If it's not a 302
@@ -180,7 +180,7 @@ func CheckLoggedIn() (bool, error) {
 		// Parse the response document
 		doc, err := goquery.NewDocumentFromReader(response.Body)
 		if err != nil {
-			return false, fmt.Errorf("error parsing response body")
+			return false, errors.Wrap(err, "error parsing response body")
 		}
 
 		// Try to find the log out button
@@ -210,14 +210,14 @@ func GetDirectoryCached(letter string) ([]Entry, error) {
 		if err == badger.ErrKeyNotFound {
 			return nil
 		} else if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get directory cache")
 		}
 
 		// Try to read the value
 		entries = make([]Entry, 0, 500)
 		return directoryItem.Value(func(val []byte) error {
 			err := json.Unmarshal(val, &entries)
-			return err
+			return errors.Wrap(err, "failed to unmarshal directory entries")
 		})
 	})
 
