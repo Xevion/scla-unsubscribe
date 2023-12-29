@@ -52,7 +52,9 @@ func SaveCookies() {
 		return *cookiePointer
 	})
 
-	log.Info().Int("count", len(utsaCookies)).Msg("Saving Cookies")
+	log.Info().Interface("cookies", lo.Map(utsaCookies, func(cookie http.Cookie, _ int) string {
+		return cookie.Name
+	})).Msg("Saving Cookies")
 
 	// Marshal cookies, create transaction
 	marshalledCookies, _ := json.Marshal(utsaCookies)
@@ -93,7 +95,10 @@ func LoadCookies() {
 	client.Jar.SetCookies(utsaUrl, lo.Map(cookies, func(cookie http.Cookie, _ int) *http.Cookie {
 		return &cookie
 	}))
-	log.Info().Int("count", len(cookies)).Msg("Cookies Loaded from DB")
+
+	log.Info().Interface("cookies", lo.Map(cookies, func(cookie http.Cookie, _ int) string {
+		return cookie.Name
+	})).Msg("Cookies Loaded")
 }
 
 func main() {
