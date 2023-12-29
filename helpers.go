@@ -15,6 +15,7 @@ func DoRequestNoRead(req *http.Request) (*http.Response, error) {
 	// Log the request
 	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
 
+	// Send the request (while acquiring timings)
 	start := time.Now()
 	resp, err := client.Do(req)
 	duration := time.Since(start)

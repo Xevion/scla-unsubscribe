@@ -127,6 +127,12 @@ func main() {
 		log.Info().Msg("Login not required")
 	}
 
+	// print directory for Z
+	_, err = GetDirectoryCached("Z")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get directory")
+	}
+
 	defer db.Close()
 	defer SaveCookies()
 

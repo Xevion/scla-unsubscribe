@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	badger "github.com/dgraph-io/badger/v4"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 )
@@ -192,4 +195,106 @@ func CheckLoggedIn() (bool, error) {
 	}
 
 	return false, nil
+}
+
+func GetDirectoryCached(letter string) ([]Entry, error) {
+	key := fmt.Sprintf("directory:%s", letter)
+
+	// Check if cached
+	var entries []Entry
+	err := db.View(func(txn *badger.Txn) error {
+		log.Debug().Str("letter", letter).Str("key", key).Msg("Accessing Directory Cache")
+		directoryItem, err := txn.Get([]byte(key))
+
+		// Check if key was found
+		if err == badger.ErrKeyNotFound {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		// Try to read the value
+		entries = make([]Entry, 0, 500)
+		return directoryItem.Value(func(val []byte) error {
+			err := json.Unmarshal(val, &entries)
+			return err
+		})
+	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to load from cache")
+	}
+
+	// If cached, return it
+	if entries != nil {
+		return entries, nil
+	}
+
+	// If not cached, get it
+	entries, err = GetDirectory(letter)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get directory")
+	}
+
+	// Cache it
+	err = db.Update(func(txn *badger.Txn) error {
+		// Marshal cookies
+		marshalledEntries, err := json.Marshal(entries)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal directory entries")
+		}
+
+		// create transaction
+		log.Debug().Str("letter", letter).Str("key", key).Msg("Saving to Directory Cache")
+		return txn.Set([]byte(key), []byte(marshalledEntries))
+	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to save to cache")
+	}
+
+	return entries, nil
+}
+
+func GetDirectory(letter string) ([]Entry, error) {
+	// Build the request
+	directoryPageUrl, _ := url.Parse("https://www.utsa.edu/directory/SearchByLastName")
+	query := directoryPageUrl.Query()
+	query.Set("abc", letter)
+	directoryPageUrl.RawQuery = query.Encode()
+
+	// Send the request
+	request, _ := http.NewRequest("GET", directoryPageUrl.String(), nil)
+	ApplyUtsaHeaders(request)
+	response, err := DoRequestNoRead(request)
+	if err != nil {
+		return nil, fmt.Errorf("error sending directory request")
+	}
+
+	// Parse the response
+	doc, err := goquery.NewDocumentFromReader(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing response body")
+	}
+
+	rows := doc.Find("table#peopleTable > tbody > tr")
+	entries := make([]Entry, 0, rows.Length())
+	log.Debug().Int("count", rows.Length()).Msg("Rows Found")
+
+	rows.Each(func(i int, s *goquery.Selection) {
+		entry := Entry{}
+		nameElement := s.Find("a.fullName")
+		// TODO: Process the HREF URL into an actual ID
+		entry.Id, _ = nameElement.Attr("href")
+		entry.Name = strings.TrimSpace(nameElement.Text())
+
+		entry.JobTitle = strings.TrimSpace(s.Find("span.jobtitle").Text())
+		entry.Department = strings.TrimSpace(s.Find("span.dept").Text())
+		entry.College = strings.TrimSpace(s.Find("span.college").Text())
+		entry.Phone = strings.TrimSpace(s.Find("span.phone").Text())
+
+		entries = append(entries, entry)
+	})
+
+	return entries, nil
 }
