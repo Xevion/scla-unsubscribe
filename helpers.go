@@ -1,17 +1,72 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"golang.org/x/time/rate"
 )
+
+var DomainLimiters = map[string]*rate.Limiter{
+	"utsa.edu": rate.NewLimiter(2, 5),
+}
+
+func GetLimiter(domain string) *rate.Limiter {
+	// Naively simplify the domain
+	simplifiedDomain := SimplifyUrlToDomain(domain)
+	if simplifiedDomain != domain {
+		log.Debug().Str("domain", domain).Str("simplified", simplifiedDomain).Msg("Domain Simplified")
+	}
+
+	// Get the limiter
+	limiter, ok := DomainLimiters[simplifiedDomain]
+
+	// Create a new limiter if one does not exist
+	if !ok {
+		limiter = rate.NewLimiter(1, 3)
+		DomainLimiters[simplifiedDomain] = limiter
+		log.Debug().Str("domain", domain).Msg("New Limiter Created")
+	}
+	return limiter
+}
+
+var DomainPattern = regexp.MustCompile(`(?:\w+\.)*(\w+\.\w+)(?:\/)?`)
+
+func SimplifyUrlToDomain(url string) string {
+	// Find the domain
+	matches := DomainPattern.FindStringSubmatch(url)
+	if len(matches) == 0 {
+		return ""
+	}
+	return matches[1]
+}
+
+func Wait(limiter *rate.Limiter, ctx context.Context) {
+	r := limiter.Reserve()
+	if !r.OK() {
+		log.Warn().Msg("Rate Limit Exceeded")
+		return
+	}
+
+	// Wait for the limiter
+	if r.Delay() > 0 {
+		log.Debug().Str("delay", r.Delay().String()).Msg("Waiting")
+		time.Sleep(r.Delay())
+	}
+}
 
 // DoRequestNoRead makes a request and returns the response
 // Compared to DoRequest, this function does not read the response body, and it uses the Content-Length header for the associated log attribute.
 // This function encapsulates the boilerplate for logging.
 func DoRequestNoRead(req *http.Request) (*http.Response, error) {
+	// Acquire the limiter, and wait for a token
+	limiter := GetLimiter(req.URL.Host)
+	Wait(limiter, req.Context())
+
 	// Log the request
 	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
 
@@ -34,6 +89,10 @@ func DoRequestNoRead(req *http.Request) (*http.Response, error) {
 // DoRequest makes a request and returns the response and body
 // This function encapsulates the boilerplate for logging and reading the response body
 func DoRequest(req *http.Request) (*http.Response, []byte, error) {
+	// Acquire the limiter, and wait for a token
+	limiter := GetLimiter(req.URL.Host)
+	Wait(limiter, req.Context())
+
 	// Log the request
 	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
 
