@@ -345,7 +345,7 @@ func GetFullEntryCached(id string) (*FullEntry, error) {
 
 		// Check if key was found
 		if err == badger.ErrKeyNotFound {
-			log.Warn().Str("key", key).Msg("Entry Cache Not Found")
+			log.Debug().Str("key", key).Msg("Entry Cache Not Found")
 			return nil
 		} else if err != nil {
 			return errors.Wrap(err, "failed to get entry cache")

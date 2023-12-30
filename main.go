@@ -170,6 +170,10 @@ func main() {
 				log.Fatal().Err(err).Msg("Failed to get full entry")
 			}
 
+			if fullEntry.Email == "" {
+				log.Warn().Str("name", fullEntry.Name).Msg("Entry has no email")
+				continue
+			}
 			log.Debug().Str("name", fullEntry.Name).Str("email", fullEntry.Email).Msg("Entry Processed")
 			entries <- fullEntry.Email
 		}
