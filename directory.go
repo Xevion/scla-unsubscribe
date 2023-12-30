@@ -291,22 +291,36 @@ func GetDirectory(letter string) ([]Entry, error) {
 		return nil, fmt.Errorf("error parsing response body")
 	}
 
+	// Acquire selector
 	rows := doc.Find("table#peopleTable > tbody > tr")
 	entries := make([]Entry, 0, rows.Length())
 	log.Debug().Int("count", rows.Length()).Msg("Rows Found")
 
+	// Check number of rows
+	if rows.Length() < 1 {
+		return nil, fmt.Errorf("no rows found in directory")
+	} else if rows.Length() <= 20 {
+		log.Warn().Int("count", rows.Length()).Msg("Low number of rows found")
+	}
+
+	// Iterate over rows
 	rows.Each(func(i int, s *goquery.Selection) {
 		entry := Entry{}
 		nameElement := s.Find("a.fullName")
 
 		// Process the HREF URL into an actual ID
-		personPath, err := nameElement.Attr("href")
+		personPath, exists := nameElement.Attr("href")
 		valueIndex := strings.Index(personPath, "abc=")
-		if !err || valueIndex == -1 {
+		if !exists || valueIndex == -1 {
 			log.Warn().Str("href", personPath).Msg("Could not find ID in HREF")
 			return
 		}
-		entry.Id = personPath[valueIndex+4:]
+		unescapedId, err := url.QueryUnescape(personPath[valueIndex+4:])
+		if err != nil {
+			log.Warn().Str("href", personPath).Msg("Could not unescape ID")
+			return
+		}
+		entry.Id = unescapedId
 
 		entry.Name = strings.TrimSpace(nameElement.Text())
 
