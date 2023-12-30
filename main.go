@@ -6,7 +6,6 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"os/signal"
 
 	badger "github.com/dgraph-io/badger/v4"
 	"github.com/joho/godotenv"
@@ -102,21 +101,24 @@ func LoadCookies() {
 }
 
 func main() {
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
+	// stop := make(chan os.Signal, 1)
+	// signal.Notify(stop, os.Interrupt)
 
 	// Load .env
 	godotenv.Load()
-
 	username := os.Getenv("UTSA_USERNAME")
 	password := os.Getenv("UTSA_PASSWORD")
+	defer db.Close()
+	defer SaveCookies()
 
+	// Check if logged in
 	log.Debug().Msg("Checking Login State")
 	loggedIn, err := CheckLoggedIn()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to check login state")
 	}
 
+	// Login if required
 	if !loggedIn {
 		log.Info().Str("username", username).Msg("Attempting Login")
 		err := Login(username, password)
@@ -124,7 +126,7 @@ func main() {
 			log.Fatal().Err(err).Msg("Failed to login")
 		}
 	} else {
-		log.Info().Msg("Login not required")
+		log.Info().Msg("Login Not Required")
 	}
 
 	// Get the directory
@@ -133,18 +135,4 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to get directory")
 	}
 	log.Info().Int("count", len(directory)).Msg("Directory Loaded")
-
-	defer db.Close()
-	defer SaveCookies()
-
-	// email := strings.ToLower(fmt.Sprintf("%s.%s@my.utsa.edu", fake.FirstName(), fake.LastName()))
-
-	// log.Debug().Str("email", email).Msg("Unsubscribing")
-	// conf, err := Unsubscribe(email)
-
-	// if err != nil {
-	// 	log.Panic().Err(err).Msg("Failed to Unsubscribe")
-	// }
-
-	// log.Info().Str("formId", conf.FormId).Str("followUpUrl", conf.FollowUpUrl).Str("deliveryType", conf.DeliveryType).Str("followUpStreamValue", conf.FollowUpStreamValue).Str("aliId", conf.AliId).Msg("Unsubscribed")
 }

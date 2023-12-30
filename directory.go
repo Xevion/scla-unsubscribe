@@ -217,7 +217,6 @@ func GetDirectoryCached(letter string) ([]Entry, error) {
 	// Check if cached
 	var entries []Entry
 	err := db.View(func(txn *badger.Txn) error {
-		log.Debug().Str("key", key).Msg("Accessing Directory Cache")
 		directoryItem, err := txn.Get([]byte(key))
 
 		// Check if key was found
