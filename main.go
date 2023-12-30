@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"sync"
 
 	badger "github.com/dgraph-io/badger/v4"
 	"github.com/joho/godotenv"
@@ -169,15 +169,27 @@ func main() {
 		}
 	}()
 
+	var wg sync.WaitGroup
+
 	// Process each email
 	for email := range entries {
 		log.Info().Str("email", email).Msg("Unsubscribing Email")
-		go Unsubscribe(email)
+		wg.Add(1)
+		go func(email string) {
+			defer wg.Done()
+			Unsubscribe(email)
+		}(email)
 
 		// 1/2 chance to unsubscribe fake email
-		if rand.Intn(2) == 0 {
+		if RandBool() {
 			log.Info().Str("email", email).Msg("Unsubscribing Fake Email")
-			go Unsubscribe(email)
+			wg.Add(1)
+			go func(email string) {
+				defer wg.Done()
+				go Unsubscribe(FakeEmail())
+			}(email)
 		}
 	}
+
+	wg.Wait()
 }
