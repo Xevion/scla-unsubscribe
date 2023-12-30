@@ -211,7 +211,7 @@ func GetFullDirectory() ([]Entry, error) {
 }
 
 func GetDirectoryCached(letter rune) ([]Entry, error) {
-	key := fmt.Sprintf("directory:%s", letter)
+	key := fmt.Sprintf("directory:%s", string(letter))
 
 	// Check if cached
 	var entries []Entry
@@ -408,12 +408,22 @@ func GetFullEntry(id string) (*FullEntry, error) {
 
 	entry.Other = rows
 
-	// Find the name
+	// Multiple names found, collect and log
 	nameElement := doc.Find("body > #main span.nameBold > strong")
-	if nameElement.Length() != 1 {
-		return nil, fmt.Errorf("could not find name: %d elements", nameElement.Length())
+	if nameElement.Length() > 1 {
+		var names []string
+		nameElement.Each(func(i int, s *goquery.Selection) {
+			names = append(names, strings.TrimSpace(s.Text()))
+		})
+		log.Warn().Int("count", nameElement.Length()).Interface("names", names).Msg("Multiple Names Found")
+
+		// Use the longest name
+		entry.Name = lo.MaxBy(names, func(name string, max string) bool {
+			return len(name) > len(max)
+		})
+	} else {
+		entry.Name = strings.TrimSpace(nameElement.Text())
 	}
-	entry.Name = strings.TrimSpace(nameElement.Text())
 
 	return &entry, nil
 }

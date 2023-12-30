@@ -139,7 +139,7 @@ func main() {
 	// Get the directory
 	for letter := 'A'; letter <= 'Z'; letter++ {
 		go func(letter rune) {
-			letterEntries, err := GetDirectoryCached(string(letter))
+			letterEntries, err := GetDirectoryCached(letter)
 			if err != nil {
 				log.Fatal().Err(err).Msg("Failed to get directory")
 			}
