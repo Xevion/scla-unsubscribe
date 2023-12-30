@@ -193,7 +193,7 @@ func Bytes(bytes uint64) string {
 
 // RandBool returns a random boolean
 func RandBool() bool {
-	return rand.Intn(2) == 0
+	return rand.Uint64()&1 == 1
 }
 
 // FakeEmail generates a fake email address

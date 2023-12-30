@@ -179,6 +179,7 @@ func main() {
 			if !cached {
 				log.Info().Str("name", fullEntry.Name).Str("email", fullEntry.Email).Msg("New Email Found")
 			}
+
 			log.Debug().Str("name", fullEntry.Name).Str("email", fullEntry.Email).Msg("Entry Processed")
 			entries <- fullEntry.Email
 		}
@@ -186,23 +187,35 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	// Process each email
-	for email := range entries {
-		log.Info().Str("email", email).Msg("Unsubscribing Email")
+	QueueEmail := func(email string, fake bool) {
 		wg.Add(1)
 		go func(email string) {
-			defer wg.Done()
-			Unsubscribe(email)
-		}(email)
+			_, err := Unsubscribe(email)
+			if err != nil {
+				log.Err(err).Str("email", email).Msg("Error occurred while trying to unsubscribe email")
+			}
 
-		// 1/2 chance to unsubscribe fake email
-		if RandBool() {
-			log.Info().Str("email", email).Msg("Unsubscribing Fake Email")
-			wg.Add(1)
-			go func(email string) {
-				defer wg.Done()
-				go Unsubscribe(FakeEmail())
-			}(email)
+			log.Info().Str("email", email).Msg(lo.Ternary(!fake, "Email Unsubscribed", "Fake Email Unsubscribed"))
+
+			wg.Done()
+
+		}(email)
+	}
+
+	// Process each email
+	for email := range entries {
+		seen, err := CheckEmail(email)
+		if err != nil {
+			log.Err(err).Str("email", email).Msg("Unable to Check Email Unsubscription State")
+		}
+
+		if !seen {
+			QueueEmail(email, false)
+
+			// 1/2 chance to unsubscribe fake email
+			if RandBool() {
+				QueueEmail(FakeEmail(), true)
+			}
 		}
 	}
 
