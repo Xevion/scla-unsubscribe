@@ -108,6 +108,7 @@ func main() {
 	godotenv.Load()
 	username := os.Getenv("UTSA_USERNAME")
 	password := os.Getenv("UTSA_PASSWORD")
+
 	defer db.Close()
 	defer SaveCookies()
 
@@ -130,9 +131,32 @@ func main() {
 	}
 
 	// Get the directory
-	directory, err := GetFullDirectory()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get directory")
+	go func() {
+		directory, err := GetFullDirectory()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to get directory")
+		}
+		log.Info().Int("count", len(directory)).Msg("Directory Loaded")
+
+		// Place each entry in the channel
+		for _, entry := range directory {
+			incompleteEntries <- entry
+		}
+	}()
+
+	// Process each incomplete entry
+	lim := GetLimiter("test")
+	go func() {
+		for entry := range incompleteEntries {
+			// Wait for a token
+			Wait(lim, nil)
+			log.Debug().Str("name", entry.Name).Msg("Processing Entry")
+			entries <- entry.College
+		}
+	}()
+
+	// Process each email
+	for email := range entries {
+		log.Debug().Str("email", email).Msg("Processing Email")
 	}
-	log.Info().Int("count", len(directory)).Msg("Directory Loaded")
 }
