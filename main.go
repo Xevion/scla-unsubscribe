@@ -128,9 +128,14 @@ func main() {
 	}
 
 	// print directory for Z
-	_, err = GetDirectoryCached("Z")
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get directory")
+	for letter := 'A'; letter <= 'Z'; letter++ {
+		entries, err := GetDirectoryCached(string(letter))
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to get directory")
+			break
+		}
+
+		log.Info().Str("letter", string(letter)).Int("entries", len(entries)).Msg("Directory")
 	}
 
 	defer db.Close()
