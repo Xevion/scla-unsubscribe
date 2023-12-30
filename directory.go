@@ -197,18 +197,32 @@ func CheckLoggedIn() (bool, error) {
 	return false, nil
 }
 
+func GetFullDirectory() ([]Entry, error) {
+	entries := make([]Entry, 0, 500)
+	for letter := 'A'; letter <= 'Z'; letter++ {
+		letterEntries, err := GetDirectoryCached(string(letter))
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get directory")
+		}
+
+		entries = append(entries, letterEntries...)
+	}
+
+	return entries, nil
+}
+
 func GetDirectoryCached(letter string) ([]Entry, error) {
 	key := fmt.Sprintf("directory:%s", letter)
 
 	// Check if cached
 	var entries []Entry
 	err := db.View(func(txn *badger.Txn) error {
-		log.Debug().Str("letter", letter).Str("key", key).Msg("Accessing Directory Cache")
+		log.Debug().Str("key", key).Msg("Accessing Directory Cache")
 		directoryItem, err := txn.Get([]byte(key))
 
 		// Check if key was found
 		if err == badger.ErrKeyNotFound {
-			log.Warn().Str("letter", letter).Str("key", key).Msg("Directory Cache Not Found")
+			log.Warn().Str("key", key).Msg("Directory Cache Not Found")
 			return nil
 		} else if err != nil {
 			return errors.Wrap(err, "failed to get directory cache")

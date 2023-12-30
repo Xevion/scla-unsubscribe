@@ -127,16 +127,12 @@ func main() {
 		log.Info().Msg("Login not required")
 	}
 
-	// print directory for Z
-	for letter := 'A'; letter <= 'Z'; letter++ {
-		entries, err := GetDirectoryCached(string(letter))
-		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get directory")
-			break
-		}
-
-		log.Info().Str("letter", string(letter)).Int("entries", len(entries)).Msg("Directory")
+	// Get the directory
+	directory, err := GetFullDirectory()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get directory")
 	}
+	log.Info().Int("count", len(directory)).Msg("Directory Loaded")
 
 	defer db.Close()
 	defer SaveCookies()
