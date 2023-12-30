@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -170,6 +171,13 @@ func main() {
 
 	// Process each email
 	for email := range entries {
-		log.Debug().Str("email", email).Msg("Processing Email")
+		log.Info().Str("email", email).Msg("Unsubscribing Email")
+		go Unsubscribe(email)
+
+		// 1/2 chance to unsubscribe fake email
+		if rand.Intn(2) == 0 {
+			log.Info().Str("email", email).Msg("Unsubscribing Fake Email")
+			go Unsubscribe(email)
+		}
 	}
 }
