@@ -320,3 +320,83 @@ func GetDirectory(letter string) ([]Entry, error) {
 
 	return entries, nil
 }
+
+func GetFullEntry(id string) (*FullEntry, error) {
+	// Build the request
+	directoryPageUrl, _ := url.Parse("https://www.utsa.edu/directory/Person_Detail")
+	query := directoryPageUrl.Query()
+	query.Set("abc", id)
+	directoryPageUrl.RawQuery = query.Encode()
+
+	// Send the request
+	request, _ := http.NewRequest("GET", directoryPageUrl.String(), nil)
+	ApplyUtsaHeaders(request)
+	response, err := DoRequestNoRead(request)
+	if err != nil {
+		return nil, fmt.Errorf("error sending directory request")
+	}
+
+	// Parse the response
+	doc, err := goquery.NewDocumentFromReader(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing response body")
+	}
+
+	// Move all rows into a map
+	rows := make(map[string]string)
+	rowElements := doc.Find("table.detail > tbody > tr")
+	log.Debug().Int("count", rowElements.Length()).Msg("Rows Found")
+
+	// Check number of rows
+	if rowElements.Length() < 1 {
+		return nil, fmt.Errorf("no rows found")
+	}
+
+	// Iterate over rows
+	rowElements.Each(func(i int, s *goquery.Selection) {
+		// left hand column
+		rowTitle := NormalizeTitle(strings.TrimRight(
+			strings.TrimSpace(s.Find("th > strong").Text()), ":",
+		))
+
+		// right hand column, add to map
+		rows[rowTitle] = strings.TrimSpace(s.Find("td").Text())
+	})
+
+	// Build the entry from the map
+	entry := FullEntry{}
+
+	entry.Name = rows["name"]
+	delete(rows, "name")
+
+	entry.Classification = rows["classification"]
+	delete(rows, "classification")
+
+	entry.College = rows["college"]
+	delete(rows, "college")
+
+	entry.Major = rows["major"]
+	delete(rows, "major")
+
+	entry.Email = rows["email"]
+	delete(rows, "email")
+
+	entry.Title = rows["title"]
+	delete(rows, "title")
+
+	entry.Department = rows["department"]
+	delete(rows, "department")
+
+	entry.MailingAddress = rows["mailing-address"]
+	delete(rows, "mailing-address")
+
+	entry.Building = rows["building"]
+	delete(rows, "building")
+
+	entry.Phone = rows["phone"]
+	delete(rows, "phone")
+
+	entry.Other = rows
+
+	return &entry, nil
+}

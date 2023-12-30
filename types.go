@@ -9,6 +9,21 @@ type Entry struct {
 	Phone      string
 }
 
+type FullEntry struct {
+	Name           string
+	Classification string
+	College        string
+	Major          string
+	Email          string
+	// Attributes only for faculty
+	Title          string
+	Department     string
+	MailingAddress string
+	Building       string
+	Phone          string
+	Other          map[string]string
+}
+
 type ConfirmationResponse struct {
 	FormId              string `json:"formId"`
 	FollowUpUrl         string `json:"followUpUrl"`
