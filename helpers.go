@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -139,4 +140,33 @@ func ApplyUtsaHeaders(req *http.Request) {
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
 	req.Header.Set("Accept-Encoding", "gzip, deflate")
+}
+
+var nonAlphaNumeric = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+var continuousWhitespace = regexp.MustCompile(`\s+`)
+
+// NormalizeTitle creates a normalized title from a string, providing a consistent format regardless of whitespace or non-alphanumeric characters
+//
+// Non-alphanumeric characters are removed
+// Capital letters are converted to lowercase
+// Whitespace at the beginning or end of the string is removed
+// Whitespace of any continuous length is replaced with a single dash
+//
+// Examples:
+//
+//	"Mailing Address" => "mailing-address"
+//	"Mailing   | Address" => "mailing-address"
+//	"  Mailing Address  " => "mailing-address"
+//	"  Mailing   | Address  " => "mailing-address"
+func NormalizeTitle(title string) string {
+	return continuousWhitespace.ReplaceAllString(
+		strings.TrimSpace(
+			strings.ToLower(
+				nonAlphaNumeric.ReplaceAllString(
+					title, " ",
+				),
+			),
+		),
+		"-",
+	)
 }
