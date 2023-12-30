@@ -208,6 +208,7 @@ func GetDirectoryCached(letter string) ([]Entry, error) {
 
 		// Check if key was found
 		if err == badger.ErrKeyNotFound {
+			log.Warn().Str("letter", letter).Str("key", key).Msg("Directory Cache Not Found")
 			return nil
 		} else if err != nil {
 			return errors.Wrap(err, "failed to get directory cache")
