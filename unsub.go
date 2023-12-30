@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 
+	badger "github.com/dgraph-io/badger/v4"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 )
@@ -104,4 +106,80 @@ func Unsubscribe(email string) (*ConfirmationResponse, error) {
 	var confirmation ConfirmationResponse
 	json.Unmarshal(body, &confirmation)
 	return &confirmation, nil
+}
+
+// CheckEmail checks if an email is unsubscribed in the database
+// Returns true if the email
+func CheckEmail(email string) (bool, error) {
+	// If the email has uppercase characters, lowercase it
+	if strings.ContainsAny(email, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+		email = strings.ToLower(email)
+	}
+
+	var isUnsubscribed bool
+	err := db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(email))
+		if err == badger.ErrKeyNotFound {
+			isUnsubscribed = false
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		err = item.Value(func(val []byte) error {
+			switch string(val) {
+			case "1":
+				isUnsubscribed = true
+			case "0":
+				isUnsubscribed = false
+			default:
+				return fmt.Errorf("invalid value for email %s: %s", email, string(val))
+
+			}
+			return nil
+		})
+
+		return err
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	return isUnsubscribed, nil
+}
+
+// MarkEmail marks an email as unsubscribed in the database
+func MarkEmail(email string) error {
+	return db.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(email), []byte("1"))
+	})
+}
+
+func TryUnsubscribe(email string) (bool, error) {
+	// Check if the email is already unsubscribed
+	isUnsubscribed, err := CheckEmail(email)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to check if email is unsubscribed")
+	}
+	log.Debug().Str("email", email).Bool("isUnsubscribed", isUnsubscribed).Msg("Checking if email is unsubscribed")
+
+	// If the email is already unsubscribed, return
+	if isUnsubscribed {
+		return false, nil
+	}
+
+	// Try to unsubscribe the email
+	_, err = Unsubscribe(email)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to unsubscribe email")
+	}
+
+	// If the email was successfully unsubscribed, mark it as such
+	err = MarkEmail(email)
+	if err != nil {
+		return true, errors.Wrap(err, "failed to mark email as unsubscribed")
+	}
+
+	return true, nil
 }
