@@ -298,8 +298,16 @@ func GetDirectory(letter string) ([]Entry, error) {
 	rows.Each(func(i int, s *goquery.Selection) {
 		entry := Entry{}
 		nameElement := s.Find("a.fullName")
-		// TODO: Process the HREF URL into an actual ID
-		entry.Id, _ = nameElement.Attr("href")
+
+		// Process the HREF URL into an actual ID
+		personPath, err := nameElement.Attr("href")
+		valueIndex := strings.Index(personPath, "abc=")
+		if !err || valueIndex == -1 {
+			log.Warn().Str("href", personPath).Msg("Could not find ID in HREF")
+			return
+		}
+		entry.Id = personPath[valueIndex+4:]
+
 		entry.Name = strings.TrimSpace(nameElement.Text())
 
 		entry.JobTitle = strings.TrimSpace(s.Find("span.jobtitle").Text())
