@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	client *http.Client
-	db     *badger.DB
+	client    *http.Client
+	db        *badger.DB
+	flagLevel = flag.String("level", "info", "log level")
 
 	// A channel that will be used to buffer incomplete entries that need to be queried properly
 	incompleteEntries = make(chan Entry)
@@ -27,6 +28,11 @@ var (
 )
 
 func init() {
+	// Acquire log level from flag
+	flag.Parse()
+	parsedLevel, _ := zerolog.ParseLevel(*flagLevel)
+	zerolog.SetGlobalLevel(parsedLevel)
+
 	log.Logger = zerolog.New(logSplitter{}).With().Timestamp().Logger()
 
 	// Initialize Badger db store
