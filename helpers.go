@@ -5,9 +5,11 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/time/rate"
 )
@@ -81,7 +83,11 @@ func DoRequestNoRead(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Str("content-length", resp.Header.Get("Content-Length")).
+	contentLength, err := strconv.ParseUint(resp.Header.Get("Content-Length"), 10, 64)
+	if err != nil {
+		contentLength = 0
+	}
+	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Str("content-length", Bytes(contentLength)).
 		Str("duration", duration.String()).Msg("Response")
 
 	return resp, nil
@@ -112,12 +118,12 @@ func DoRequest(req *http.Request) (*http.Response, []byte, error) {
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Err(err).Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Int("content-length", len(body)).
+		log.Err(err).Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Str("content-length", Bytes(uint64(len(body)))).
 			Str("duration", duration.String()).Msg("Response (Unable to Read Body)")
 		return nil, nil, err
 	}
 
-	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Int("content-length", len(body)).
+	log.Debug().Int("code", resp.StatusCode).Str("content-type", resp.Header.Get("Content-Type")).Str("content-length", Bytes(uint64(len(body)))).
 		Str("duration", duration.String()).Msg("Response")
 	return resp, body, nil
 }
@@ -168,4 +174,9 @@ func NormalizeTitle(title string) string {
 		),
 		"-",
 	)
+}
+
+// Bytes calls humanize.Bytes and removes space characters
+func Bytes(bytes uint64) string {
+	return strings.Replace(humanize.Bytes(bytes), " ", "", -1)
 }
