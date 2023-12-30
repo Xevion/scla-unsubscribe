@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -10,12 +12,15 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/icrowley/fake"
 	"github.com/rs/zerolog/log"
+	"github.com/samber/lo"
 	"golang.org/x/time/rate"
 )
 
 var DomainLimiters = map[string]*rate.Limiter{
-	"utsa.edu": rate.NewLimiter(2, 5),
+	"utsa.edu":    rate.NewLimiter(2, 5),
+	"thescla.org": rate.NewLimiter(3, 7),
 }
 
 func GetLimiter(domain string) *rate.Limiter {
@@ -37,8 +42,12 @@ func GetLimiter(domain string) *rate.Limiter {
 	return limiter
 }
 
+// This will select multiple groups, but the first group is all that matters
 var DomainPattern = regexp.MustCompile(`(?:\w+\.)*(\w+\.\w+)(?:\/)?`)
 
+// SimplifyUrlToDomain transforms a url into a common simplified domain
+// This is not the same as the host, as it removes subdomains (www, asap, etc.)
+// This helps me group together domains that are related to eachother, such as those at UTSA.
 func SimplifyUrlToDomain(url string) string {
 	// Find the domain
 	matches := DomainPattern.FindStringSubmatch(url)
@@ -48,6 +57,7 @@ func SimplifyUrlToDomain(url string) string {
 	return matches[1]
 }
 
+// Wait waits for a token from the limiter
 func Wait(limiter *rate.Limiter, ctx context.Context) {
 	r := limiter.Reserve()
 	if !r.OK() {
@@ -179,4 +189,14 @@ func NormalizeTitle(title string) string {
 // Bytes calls humanize.Bytes and removes space characters
 func Bytes(bytes uint64) string {
 	return strings.Replace(humanize.Bytes(bytes), " ", "", -1)
+}
+
+// RandBool returns a random boolean
+func RandBool() bool {
+	return rand.Intn(2) == 0
+}
+
+// FakeEmail generates a fake email address
+func FakeEmail() string {
+	return strings.ToLower(fmt.Sprintf("%s.%s@%sutsa.edu", fake.FirstName(), fake.LastName(), lo.Ternary(RandBool(), "my.", "")))
 }
