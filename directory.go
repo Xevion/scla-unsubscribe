@@ -63,7 +63,6 @@ func Login(username string, password string) error {
 		"passphrase":                 {password},
 		"log-me-in":                  {"Log+In"},
 	}
-	log.Debug().Str("form", form.Encode()).Msg("Form Encoded")
 	request, _ = http.NewRequest("POST", "https://www.utsa.edu/directory/", strings.NewReader(form.Encode()))
 	ApplyUtsaHeaders(request)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -200,7 +199,7 @@ func CheckLoggedIn() (bool, error) {
 func GetFullDirectory() ([]Entry, error) {
 	entries := make([]Entry, 0, 500)
 	for letter := 'A'; letter <= 'Z'; letter++ {
-		letterEntries, err := GetDirectoryCached(string(letter))
+		letterEntries, err := GetDirectoryCached(letter)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get directory")
 		}
@@ -211,7 +210,7 @@ func GetFullDirectory() ([]Entry, error) {
 	return entries, nil
 }
 
-func GetDirectoryCached(letter string) ([]Entry, error) {
+func GetDirectoryCached(letter rune) ([]Entry, error) {
 	key := fmt.Sprintf("directory:%s", letter)
 
 	// Check if cached
@@ -259,7 +258,7 @@ func GetDirectoryCached(letter string) ([]Entry, error) {
 		}
 
 		// create transaction
-		log.Debug().Str("letter", letter).Str("key", key).Msg("Saving to Directory Cache")
+		log.Debug().Str("letter", string(letter)).Str("key", key).Msg("Saving to Directory Cache")
 		return txn.Set([]byte(key), []byte(marshalledEntries))
 	})
 
@@ -270,11 +269,11 @@ func GetDirectoryCached(letter string) ([]Entry, error) {
 	return entries, nil
 }
 
-func GetDirectory(letter string) ([]Entry, error) {
+func GetDirectory(letter rune) ([]Entry, error) {
 	// Build the request
 	directoryPageUrl, _ := url.Parse("https://www.utsa.edu/directory/SearchByLastName")
 	query := directoryPageUrl.Query()
-	query.Set("abc", letter)
+	query.Set("abc", string(letter))
 	directoryPageUrl.RawQuery = query.Encode()
 
 	// Send the request
@@ -380,9 +379,6 @@ func GetFullEntry(id string) (*FullEntry, error) {
 	// Build the entry from the map
 	entry := FullEntry{}
 
-	entry.Name = rows["name"]
-	delete(rows, "name")
-
 	entry.Classification = rows["classification"]
 	delete(rows, "classification")
 
@@ -411,6 +407,13 @@ func GetFullEntry(id string) (*FullEntry, error) {
 	delete(rows, "phone")
 
 	entry.Other = rows
+
+	// Find the name
+	nameElement := doc.Find("body > #main span.nameBold > strong")
+	if nameElement.Length() != 1 {
+		return nil, fmt.Errorf("could not find name: %d elements", nameElement.Length())
+	}
+	entry.Name = strings.TrimSpace(nameElement.Text())
 
 	return &entry, nil
 }
