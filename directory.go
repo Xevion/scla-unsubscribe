@@ -334,6 +334,66 @@ func GetDirectory(letter rune) ([]Entry, error) {
 	return entries, nil
 }
 
+func GetFullEntryCached(id string) (*FullEntry, error) {
+	key := fmt.Sprintf("entry:%s", id)
+
+	// Check if cached
+	var entry FullEntry
+	var cached bool
+	err := db.View(func(txn *badger.Txn) error {
+		entryItem, err := txn.Get([]byte(key))
+
+		// Check if key was found
+		if err == badger.ErrKeyNotFound {
+			log.Warn().Str("key", key).Msg("Entry Cache Not Found")
+			return nil
+		} else if err != nil {
+			return errors.Wrap(err, "failed to get entry cache")
+		}
+
+		// Try to read the value
+		return entryItem.Value(func(val []byte) error {
+			err := json.Unmarshal(val, &entry)
+			cached = true
+			return errors.Wrap(err, "failed to unmarshal entry")
+		})
+	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to load from cache")
+	}
+
+	// If cached, return it
+	if cached {
+		return &entry, nil
+	}
+
+	// If not cached, get it
+	entryPtr, err := GetFullEntry(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache it
+	err = db.Update(func(txn *badger.Txn) error {
+		// Marshal cookies
+		marshalledEntry, err := json.Marshal(*entryPtr)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal entry")
+		}
+
+		// create transaction
+		log.Debug().Str("id", id).Str("key", key).Msg("Saving to Entry Cache")
+		return txn.Set([]byte(key), []byte(marshalledEntry))
+	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to save to cache")
+	}
+
+	return entryPtr, nil
+}
+
 func GetFullEntry(id string) (*FullEntry, error) {
 	// Build the request
 	directoryPageUrl, _ := url.Parse("https://www.utsa.edu/directory/Person_Detail")

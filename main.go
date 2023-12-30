@@ -136,6 +136,8 @@ func main() {
 		log.Info().Msg("Login Not Required")
 	}
 
+	SaveCookies()
+
 	// Get the directory
 	for letter := 'A'; letter <= 'Z'; letter++ {
 		go func(letter rune) {
@@ -156,12 +158,13 @@ func main() {
 		for entry := range incompleteEntries {
 			log.Debug().Str("name", entry.Name).Msg("Processing Entry")
 
-			fullEntry, err := GetFullEntry(entry.Id)
+			fullEntry, err := GetFullEntryCached(entry.Id)
 			if err != nil {
 				log.Fatal().Err(err).Msg("Failed to get full entry")
 			}
 
 			log.Debug().Str("name", fullEntry.Name).Str("email", fullEntry.Email).Msg("Entry Processed")
+			entries <- fullEntry.Email
 		}
 	}()
 
