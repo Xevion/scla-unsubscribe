@@ -69,7 +69,7 @@ func DoRequestNoRead(req *http.Request) (*http.Response, error) {
 	Wait(limiter, req.Context())
 
 	// Log the request
-	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
+	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("url", req.URL.String()).Msg("Request")
 
 	// Send the request (while acquiring timings)
 	start := time.Now()
@@ -95,8 +95,7 @@ func DoRequest(req *http.Request) (*http.Response, []byte, error) {
 	Wait(limiter, req.Context())
 
 	// Log the request
-	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("path", req.URL.Path).Msg("Request")
-
+	log.Debug().Str("method", req.Method).Str("host", req.Host).Str("url", req.URL.String()).Msg("Request")
 	// Send the request (while acquiring timings)
 	start := time.Now()
 	resp, err := client.Do(req)
