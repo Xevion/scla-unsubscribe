@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -165,7 +166,7 @@ func main() {
 		for entry := range incompleteEntries {
 			log.Debug().Str("name", entry.Name).Msg("Processing Entry")
 
-			fullEntry, err := GetFullEntryCached(entry.Id)
+			fullEntry, cached, err := GetFullEntryCached(entry.Id)
 			if err != nil {
 				log.Fatal().Err(err).Msg("Failed to get full entry")
 			}
@@ -173,6 +174,10 @@ func main() {
 			if fullEntry.Email == "" {
 				log.Warn().Str("name", fullEntry.Name).Msg("Entry has no email")
 				continue
+			}
+
+			if !cached {
+				log.Info().Str("name", fullEntry.Name).Str("email", fullEntry.Email).Msg("New Email Found")
 			}
 			log.Debug().Str("name", fullEntry.Name).Str("email", fullEntry.Email).Msg("Entry Processed")
 			entries <- fullEntry.Email

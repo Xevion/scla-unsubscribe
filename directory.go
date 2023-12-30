@@ -334,7 +334,7 @@ func GetDirectory(letter rune) ([]Entry, error) {
 	return entries, nil
 }
 
-func GetFullEntryCached(id string) (*FullEntry, error) {
+func GetFullEntryCached(id string) (*FullEntry, bool, error) {
 	key := fmt.Sprintf("entry:%s", id)
 
 	// Check if cached
@@ -365,13 +365,13 @@ func GetFullEntryCached(id string) (*FullEntry, error) {
 
 	// If cached, return it
 	if cached {
-		return &entry, nil
+		return &entry, true, nil
 	}
 
 	// If not cached, get it
 	entryPtr, err := GetFullEntry(id)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Cache it
@@ -391,7 +391,7 @@ func GetFullEntryCached(id string) (*FullEntry, error) {
 		log.Error().Err(err).Msg("Failed to save to cache")
 	}
 
-	return entryPtr, nil
+	return entryPtr, false, nil
 }
 
 func GetFullEntry(id string) (*FullEntry, error) {
