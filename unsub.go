@@ -72,7 +72,7 @@ func Unsubscribe(email string) (*ConfirmationResponse, error) {
 	// Send request
 	response, body, err := DoRequest(request)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if response.StatusCode != 200 {
